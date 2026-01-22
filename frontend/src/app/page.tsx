@@ -16,6 +16,9 @@ const DEFAULT_PARAMS: PackageSearchParams = {
   mood: 'random'
 };
 
+const isAbortError = (error: unknown) =>
+  error instanceof DOMException && error.name === 'AbortError';
+
 export default function HomePage() {
   const [params, setParams] = useState<PackageSearchParams>(DEFAULT_PARAMS);
   const [packages, setPackages] = useState<PackageDeal[]>([]);
@@ -39,6 +42,9 @@ export default function HomePage() {
       setSummary(response);
       setSelectedId(response.data[0]?.id || null);
     } catch (err) {
+      if (isAbortError(err)) {
+        return;
+      }
       const message = err instanceof Error ? err.message : 'Something went wrong.';
       setError(message);
     } finally {

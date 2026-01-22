@@ -10,6 +10,26 @@ const { DESTINATIONS, DEFAULT_ORIGIN } = require('../config/destinations');
 const amadeusService = require('./amadeus');
 const hotelService = require('./hotels');
 
+const ORIGIN_ALIASES = {
+  LONDON: 'LON',
+  LHR: 'LON',
+  LGW: 'LON',
+  STN: 'LON',
+  LTN: 'LON',
+  LCY: 'LON',
+  SEN: 'LON',
+  MANCHESTER: 'MAN',
+  BIRMINGHAM: 'BHX',
+  EDINBURGH: 'EDI',
+  DUBLIN: 'DUB'
+};
+
+function normalizeOrigin(origin) {
+  if (!origin) return DEFAULT_ORIGIN;
+  const normalized = String(origin).trim().toUpperCase();
+  return ORIGIN_ALIASES[normalized] || normalized;
+}
+
 /**
  * Search for holiday packages to multiple destinations
  *
@@ -22,6 +42,10 @@ const hotelService = require('./hotels');
  * @param {number} options.adults - Number of adults (default: 2)
  * @param {number} options.maxBudget - Maximum total budget in GBP
  * @param {string} options.mood - 'sun', 'city', or 'random'
+ * @param {boolean} options.debug - Enable verbose logging
+ * @param {boolean} options.relaxBudget - Skip budget filtering
+ * @param {boolean} options.relaxMood - Skip mood filtering
+ * @param {Array} options.fixedDates - Optional array of { outbound, return, nights }
  * @returns {Promise<Array>} Array of holiday packages sorted by price
  */
 async function searchPackages(options = {}) {
@@ -30,16 +54,45 @@ async function searchPackages(options = {}) {
     nights = 4,
     adults = 2,
     maxBudget = 500,
-    mood = 'random'
+    mood = 'random',
+    debug = false,
+    relaxBudget = false,
+    relaxMood = false,
+    fixedDates = null
   } = options;
 
+  const normalizedOrigin = normalizeOrigin(origin);
+
   // Filter destinations by mood if specified
-  let destinations = filterDestinationsByMood(DESTINATIONS, mood);
+  const destinations = relaxMood ? DESTINATIONS : filterDestinationsByMood(DESTINATIONS, mood);
 
   // Generate search dates (2-6 months ahead)
-  const searchDates = generateOptimalDates(nights);
+  const searchDates = Array.isArray(fixedDates) && fixedDates.length > 0
+    ? fixedDates
+    : generateOptimalDates(nights);
+
+  if (debug) {
+    console.log('Package search params:', {
+      origin: normalizedOrigin,
+      nights,
+      adults,
+      maxBudget,
+      mood,
+      relaxBudget,
+      relaxMood,
+      dateSamples: searchDates.length
+    });
+  }
 
   console.log(`Searching ${destinations.length} destinations for ${nights}-night trips...`);
+
+  const stats = {
+    destinations: destinations.length,
+    flightsFound: 0,
+    overBudget: 0,
+    packagesBuilt: 0,
+    errors: 0
+  };
 
   // Search flights and hotels in parallel for each destination
   const packagePromises = destinations.map(async (dest) => {
@@ -49,7 +102,7 @@ async function searchPackages(options = {}) {
 
       for (const dates of searchDates.slice(0, 5)) { // Limit API calls
         const flight = await amadeusService.searchFlights(
-          origin,
+          normalizedOrigin,
           dest.iata,
           dates.outbound,
           dates.return,
@@ -62,8 +115,13 @@ async function searchPackages(options = {}) {
       }
 
       if (!cheapestFlight) {
+        if (debug) {
+          console.log(`No flights found for ${dest.iata} from ${normalizedOrigin}`);
+        }
         return null; // No flights found
       }
+
+      stats.flightsFound += 1;
 
       // Get hotel search URL and estimate
       const hotelSearch = await hotelService.searchHotels(
@@ -78,9 +136,15 @@ async function searchPackages(options = {}) {
       const totalEstimate = cheapestFlight.price + hotelEstimate.average;
 
       // Skip if over budget
-      if (totalEstimate > maxBudget) {
+      if (!relaxBudget && maxBudget > 0 && totalEstimate > maxBudget) {
+        stats.overBudget += 1;
+        if (debug) {
+          console.log(`Over budget for ${dest.iata}: ${totalEstimate} > ${maxBudget}`);
+        }
         return null;
       }
+
+      stats.packagesBuilt += 1;
 
       return {
         id: `pkg-${dest.iata}-${Date.now()}`,
@@ -129,6 +193,7 @@ async function searchPackages(options = {}) {
       };
 
     } catch (error) {
+      stats.errors += 1;
       console.error(`Error searching ${dest.city}:`, error.message);
       return null;
     }
@@ -143,6 +208,9 @@ async function searchPackages(options = {}) {
     .sort((a, b) => a.totalPrice - b.totalPrice);
 
   console.log(`Found ${packages.length} packages within budget`);
+  if (debug) {
+    console.log('Package search stats:', stats);
+  }
 
   return packages;
 }
