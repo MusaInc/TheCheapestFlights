@@ -1,0 +1,42 @@
+@import "mapbox-gl/dist/mapbox-gl.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #1f1a17;
+  --paper: #fff7ed;
+  --sand: #f6f0e6;
+  --accent: #f05a28;
+  --lagoon: #0e6676;
+  --clay: #c89a5a;
+  --haze: #f2eadf;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--sand);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(240, 90, 40, 0.2);
+}
+
+.mapboxgl-popup-content {
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(20, 16, 12, 0.2);
+  padding: 12px 14px;
+  font-family: var(--font-sans);
+}
