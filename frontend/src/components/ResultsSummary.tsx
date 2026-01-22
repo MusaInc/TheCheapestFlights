@@ -1,32 +1,38 @@
-import type { PackageSearchParams } from '../lib/types';
+import type { PackageDeal, PackageSearchParams } from '../lib/types';
 
-const MOOD_LABELS: Record<PackageSearchParams['mood'], string> = {
-  random: 'Any vibe',
-  sun: 'Sun & sea',
-  city: 'City break'
-};
-
-type ResultsSummaryProps = {
+interface ResultsSummaryProps {
   count: number;
   params: PackageSearchParams;
-  disclaimer?: string;
-};
+  disclaimer: string;
+}
 
 export default function ResultsSummary({ count, params, disclaimer }: ResultsSummaryProps) {
+  if (count === 0) return null;
+
   return (
-    <div className="rounded-3xl border border-clay/50 bg-white/80 p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-ink/60">Results</p>
-          <h3 className="font-display text-2xl text-ink">{count} live options</h3>
-        </div>
-        <div className="text-sm text-ink/60">
-          {params.origin} | {params.nights} nights | {MOOD_LABELS[params.mood]}
+    <div className="flex flex-col gap-4 border-b border-clay/30 pb-6 md:flex-row md:items-end md:justify-between">
+      <div>
+        <h2 className="font-display text-2xl text-ink">
+          Found {count} packages for <span className="text-clay">{params.origin}</span>
+        </h2>
+        <div className="mt-2 flex flex-wrap gap-2 text-sm text-ink/60">
+          <span className="rounded-full bg-clay/10 px-3 py-1">
+            Budget: £{params.maxBudget}
+          </span>
+          <span className="rounded-full bg-clay/10 px-3 py-1">
+            {params.nights} Nights
+          </span>
+          <span className="rounded-full bg-clay/10 px-3 py-1">
+            {params.adults} Adults
+          </span>
         </div>
       </div>
-      {disclaimer ? (
-        <p className="mt-3 text-xs text-ink/50">{disclaimer}</p>
-      ) : null}
+
+      <div className="text-right">
+        <p className="text-xs text-ink/40 max-w-xs leading-relaxed">
+          {disclaimer}
+        </p>
+      </div>
     </div>
   );
 }

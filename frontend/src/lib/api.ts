@@ -1,29 +1,30 @@
-import type { PackageSearchParams, PackageSearchResponse } from './types';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+import { PackageSearchParams, PackageSearchResponse } from './types';
 
 export async function searchPackages(
   params: PackageSearchParams,
   signal?: AbortSignal
 ): Promise<PackageSearchResponse> {
+  // We build the query string from the params object
   const query = new URLSearchParams({
     origin: params.origin,
     maxBudget: params.maxBudget.toString(),
     nights: params.nights.toString(),
     adults: params.adults.toString(),
-    mood: params.mood
+    mood: params.mood,
   });
 
-  const response = await fetch(`${API_URL}/api/packages/search?${query.toString()}`, {
-    method: 'GET',
-    signal
+  // Call our internal Next.js API route
+  const response = await fetch(`/api/packages?${query.toString()}`, {
+    signal,
+    headers: {
+      'Content-Type': 'application/json',
+    },
   });
 
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    const message = payload?.error || 'Failed to fetch packages';
-    throw new Error(message);
+    throw new Error(`Search failed: ${response.statusText}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  return data as PackageSearchResponse;
 }

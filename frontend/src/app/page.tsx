@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import PackageCard from '../components/PackageCard';
-import PackageMap from '../components/PackageMap';
 import ResultsSummary from '../components/ResultsSummary';
 import SearchPanel from '../components/SearchPanel';
 import SidebarAds from '../components/SidebarAds';
@@ -11,14 +10,11 @@ import type { PackageDeal, PackageSearchParams, PackageSearchResponse } from '..
 
 const DEFAULT_PARAMS: PackageSearchParams = {
   origin: 'LON',
-  maxBudget: 500,
+  maxBudget: 1500,
   nights: 4,
   adults: 2,
   mood: 'random'
 };
-
-const isAbortError = (error: unknown) =>
-  error instanceof DOMException && error.name === 'AbortError';
 
 export default function HomePage() {
   const [params, setParams] = useState<PackageSearchParams>(DEFAULT_PARAMS);
@@ -27,13 +23,14 @@ export default function HomePage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const controllerRef = useRef<AbortController | null>(null);
 
   const runSearch = async (searchParams: PackageSearchParams) => {
     setIsLoading(true);
     setError(null);
-
-    controllerRef.current?.abort();
+    if (controllerRef.current) controllerRef.current.abort();
+    
     const controller = new AbortController();
     controllerRef.current = controller;
 
@@ -41,128 +38,159 @@ export default function HomePage() {
       const response = await searchPackages(searchParams, controller.signal);
       setPackages(response.data);
       setSummary(response);
-      setSelectedId(response.data[0]?.id || null);
-    } catch (err) {
-      if (isAbortError(err)) {
-        return;
+      if (response.data?.length > 0) setSelectedId(response.data[0].id);
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        setError(err.message || 'Something went wrong.');
       }
-      const message = err instanceof Error ? err.message : 'Something went wrong.';
-      setError(message);
     } finally {
-      setIsLoading(false);
+      if (controllerRef.current === controller) setIsLoading(false);
     }
   };
 
   useEffect(() => {
     runSearch(DEFAULT_PARAMS);
+    return () => controllerRef.current?.abort();
   }, []);
 
+  const isFallback = summary?.exactMatch === false;
+
   return (
-    <main className="min-h-screen bg-hero px-6 pb-20 pt-10">
-      <div className="page-shell">
-        <aside className="sidebar-ads sidebar-sticky">
-          <SidebarAds position="left" />
-        </aside>
-
-        <div className="page-main flex flex-col gap-12">
-          <header className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-ink/60">Live pricing</p>
-              <h1 className="font-display text-3xl text-ink">The Cheapest Flights</h1>
+    <main className="min-h-screen bg-gray-50/50 pb-20 pt-8">
+      <div className="mx-auto max-w-[1400px] px-4 md:px-8">
+        
+        {/* Modern Header */}
+        <header className="mb-12 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-3 w-3">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-green-500"></span>
+              </span>
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Live API Connection</p>
             </div>
-            <div className="rounded-full border border-clay/60 bg-white/80 px-4 py-2 text-xs text-ink/60">
-              Amadeus fares + Booking.com links
-            </div>
-          </header>
+            <h1 className="mt-2 font-display text-4xl font-bold text-gray-900 md:text-5xl">
+              The Cheapest <span className="text-blue-600">Flights</span>
+            </h1>
+          </div>
+         
+        </header>
 
-          <section className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
-            <div className="space-y-6">
-              <div>
-                <h2 className="font-display text-4xl leading-tight text-ink">
-                  Find the lowest total trip cost.
-                </h2>
-                <p className="mt-3 max-w-xl text-base text-ink/60">
-                  Pick a budget and origin. We scan multiple weeks and rank the cheapest packages.
-                </p>
-              </div>
-              <SearchPanel
-                params={params}
-                onChange={setParams}
-                onSubmit={() => runSearch(params)}
-                isLoading={isLoading}
-              />
-              {error ? (
-                <div className="rounded-2xl border border-red-200 bg-white/80 p-4 text-sm text-red-700">
-                  {error}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="rounded-3xl border border-clay/50 bg-white/85 p-6 shadow-soft">
-              <p className="text-xs uppercase tracking-[0.2em] text-ink/60">How it works</p>
-              <ol className="mt-4 space-y-3 text-sm text-ink/60">
-                <li>1. Live flight fares from Amadeus.</li>
-                <li>2. Hotel links open on Booking.com.</li>
-                <li>3. We rank by total estimated cost.</li>
-              </ol>
-              <p className="mt-5 text-xs text-ink/50">
-                No scraping. Prices change in real time.
-              </p>
-            </div>
-          </section>
-
-          <section className="space-y-6">
-            <ResultsSummary
-              count={packages.length}
-              params={summary?.searchParams || params}
-              disclaimer={summary?.disclaimer}
-            />
-
-            {isLoading ? (
-              <div className="rounded-3xl border border-clay/50 bg-white/80 p-6 text-sm text-ink/60">
-                Loading live fares...
-              </div>
-            ) : null}
-
-            {!isLoading && packages.length === 0 ? (
-              <div className="rounded-3xl border border-clay/50 bg-white/80 p-6 text-sm text-ink/60">
-                No packages found. Try a higher budget or different mood.
-              </div>
-            ) : null}
-
-            {packages.length > 0 ? (
-              <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-                <PackageMap
-                  packages={packages}
-                  selectedId={selectedId}
-                  onSelect={setSelectedId}
+        <div className="grid gap-8 lg:grid-cols-[320px_1fr] xl:gap-12">
+          
+          {/* LEFT COLUMN: Search & Filters */}
+          <aside className="space-y-8">
+            <div className="sticky top-8 space-y-6">
+              <div className="rounded-3xl bg-white p-6 shadow-xl shadow-gray-200/50">
+                <h2 className="mb-4 text-xl font-bold text-gray-900">Plan your trip</h2>
+                <SearchPanel
+                  params={params}
+                  onChange={setParams}
+                  onSubmit={() => runSearch(params)}
+                  isLoading={isLoading}
                 />
-
-                <div className="space-y-4">
-                  {packages.map((deal) => (
-                    <PackageCard
-                      key={deal.id}
-                      deal={deal}
-                      isSelected={deal.id === selectedId}
-                      onSelect={setSelectedId}
-                    />
-                  ))}
-                </div>
               </div>
-            ) : null}
+
+              {error && (
+                <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-600">
+                  ⚠️ {error}
+                </div>
+              )}
+
+              <div className="hidden lg:block">
+                 <SidebarAds position="left" />
+              </div>
+            </div>
+          </aside>
+
+          {/* RIGHT COLUMN: Results */}
+          <section className="space-y-6">
+            
+            {/* Toolbar */}
+            <div className="flex flex-col justify-between gap-4 rounded-2xl bg-white p-4 shadow-sm md:flex-row md:items-center">
+                <ResultsSummary
+                  count={packages.length}
+                  params={summary?.searchParams || params}
+                  disclaimer={summary?.disclaimer || ''}
+                />
+                
+                <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
+                    {['grid', 'list'].map((mode) => (
+                        <button
+                            key={mode}
+                            onClick={() => setViewMode(mode as 'grid' | 'list')}
+                            className={`rounded-md px-4 py-1.5 text-xs font-bold uppercase transition-all ${
+                                viewMode === mode 
+                                    ? 'bg-white text-gray-900 shadow-sm' 
+                                    : 'text-gray-400 hover:text-gray-600'
+                            }`}
+                        >
+                            {mode}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Fallback Warning */}
+            {isFallback && !isLoading && (
+                <div className="flex items-start gap-4 rounded-2xl border border-amber-100 bg-amber-50/50 p-6">
+                    <span className="text-2xl">🤔</span>
+                    <div>
+                        <h3 className="font-bold text-amber-900">Strict budget? No problem.</h3>
+                        <p className="text-sm text-amber-800/80">
+                           We couldn't find matches under £{params.maxBudget}, so we found the absolute cheapest alternatives for you.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* SKELETON LOADING STATE */}
+            {isLoading && (
+              <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                 {[1,2,3,4,5,6].map(i => (
+                     <div key={i} className="flex h-[420px] flex-col overflow-hidden rounded-3xl bg-white shadow-sm">
+                        <div className="h-48 w-full animate-pulse bg-gray-200" />
+                        <div className="p-6 space-y-4">
+                            <div className="h-6 w-3/4 animate-pulse rounded bg-gray-100" />
+                            <div className="h-4 w-1/2 animate-pulse rounded bg-gray-100" />
+                            <div className="pt-4 flex justify-between">
+                                <div className="h-10 w-24 animate-pulse rounded-full bg-gray-100" />
+                                <div className="h-10 w-24 animate-pulse rounded-full bg-gray-100" />
+                            </div>
+                        </div>
+                     </div>
+                 ))}
+              </div>
+            )}
+
+            {/* LIVE RESULTS */}
+            {!isLoading && packages.length > 0 && (
+              <div className={
+                  viewMode === 'grid' 
+                    ? "grid gap-6 md:grid-cols-2 xl:grid-cols-3" 
+                    : "flex flex-col gap-6 mx-auto max-w-4xl"
+              }>
+                {packages.map((deal) => (
+                  <PackageCard
+                    key={deal.id}
+                    deal={deal}
+                    isSelected={deal.id === selectedId}
+                    onSelect={setSelectedId}
+                  />
+                ))}
+              </div>
+            )}
+
+            {!isLoading && packages.length === 0 && !error && (
+                <div className="flex h-96 flex-col items-center justify-center rounded-3xl border border-dashed border-gray-200 bg-gray-50 text-center">
+                    <div className="text-4xl">✈️</div>
+                    <h3 className="mt-4 font-bold text-gray-900">No flights found</h3>
+                    <p className="text-gray-500">Try changing your mood or increasing your budget.</p>
+                </div>
+            )}
+
           </section>
-
-          <footer className="rounded-3xl border border-clay/50 bg-white/80 p-6 text-xs text-ink/50">
-            <p>
-              Prices are indicative and subject to availability at time of booking. We may earn a commission from
-              Booking.com when you book through our links. Flight pricing data is provided by Amadeus.
-            </p>
-          </footer>
         </div>
-
-        <aside className="sidebar-ads sidebar-sticky">
-          <SidebarAds position="right" />
-        </aside>
       </div>
     </main>
   );

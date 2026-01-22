@@ -5,7 +5,7 @@
  * Combines flight + hotel data into complete holiday packages.
  */
 
-const express = require('express');
+const express = require('express'); 
 const router = express.Router();
 const packageService = require('../services/packages');
 const { DEFAULT_ORIGIN } = require('../config/destinations');

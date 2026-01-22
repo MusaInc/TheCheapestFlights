@@ -16,14 +16,19 @@ export type FlightDetails = {
 };
 
 export type HotelDetails = {
-  searchUrl: string;
-  estimatedPrice: number;
-  priceRange: {
+  id: string;
+  name: string;
+  image: string;
+  rating: number;
+  price: number;
+  bookingLink: string;
+  address?: string;
+  // Kept optional for backward compatibility if you still have "estimated" logic elsewhere
+  priceRange?: {
     min: number;
     max: number;
     average: number;
   };
-  disclaimer: string;
 };
 
 export type PackageDeal = {
@@ -34,17 +39,23 @@ export type PackageDeal = {
   lat: number;
   lng: number;
   nights: number;
+  adults: number;
+  
+  // The complex objects
   flight: FlightDetails;
   hotel: HotelDetails;
+  
+  // Pricing
   totalPrice: number;
   currency: string;
   priceBreakdown: {
     flight: number;
-    hotelEstimate: number;
+    hotel: number; // Renamed from hotelEstimate since it's real price now
   };
+  
+  // Metadata
   searchedAt: string;
   validUntil: string | null;
-  adults: number;
 };
 
 export type PackageSearchParams = {
@@ -52,7 +63,8 @@ export type PackageSearchParams = {
   maxBudget: number;
   nights: number;
   adults: number;
-  mood: 'sun' | 'city' | 'random';
+  // Merged moods: Includes your original 'sun'/'city' and the new specific ones
+  mood: 'sun' | 'city' | 'romantic' | 'adventure' | 'chill' | 'random';
 };
 
 export type PackageSearchResponse = {
@@ -61,4 +73,6 @@ export type PackageSearchResponse = {
   data: PackageDeal[];
   searchParams: PackageSearchParams;
   disclaimer: string;
+  // Optional error message field useful for UI handling
+  error?: string; 
 };
