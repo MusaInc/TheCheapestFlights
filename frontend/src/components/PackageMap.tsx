@@ -61,7 +61,7 @@ export default function PackageMap({ packages, selectedId, onSelect }: PackageMa
   }
 
   return (
-    <div className="relative h-[420px] w-full overflow-hidden rounded-3xl border border-clay/30 bg-white shadow-soft">
+    <div className="relative h-[420px] w-full overflow-hidden rounded-3xl border border-clay/50 bg-white shadow-soft">
       <Map
         ref={mapRef}
         mapboxAccessToken={token}
@@ -87,8 +87,8 @@ export default function PackageMap({ packages, selectedId, onSelect }: PackageMa
                 type="button"
                 className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
                   isActive
-                    ? 'border-lagoon bg-lagoon text-white'
-                    : 'border-clay/40 bg-white text-ink'
+                    ? 'border-ink bg-ink text-white'
+                    : 'border-clay/50 bg-white text-ink'
                 }`}
               >
                 {formatMoney(deal.totalPrice, deal.currency)}
@@ -99,10 +99,10 @@ export default function PackageMap({ packages, selectedId, onSelect }: PackageMa
       </Map>
 
       {selectedPackage ? (
-        <div className="absolute left-4 top-4 rounded-2xl border border-clay/40 bg-white/90 px-4 py-3 text-sm shadow-soft backdrop-blur">
-          <p className="text-xs uppercase tracking-[0.2em] text-lagoon">Selected</p>
+        <div className="absolute left-4 top-4 rounded-2xl border border-clay/50 bg-white/90 px-4 py-3 text-sm shadow-soft backdrop-blur">
+          <p className="text-xs uppercase tracking-[0.2em] text-ink/60">Selected</p>
           <p className="font-display text-lg text-ink">{selectedPackage.city}</p>
-          <p className="text-xs text-ink/70">{selectedPackage.country}</p>
+          <p className="text-xs text-ink/50">{selectedPackage.country}</p>
         </div>
       ) : null}
     </div>

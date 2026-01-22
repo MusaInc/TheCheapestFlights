@@ -28,14 +28,14 @@ export default function SearchPanel({ params, onChange, onSubmit, isLoading }: S
         event.preventDefault();
         onSubmit();
       }}
-      className="rounded-3xl border border-clay/30 bg-paper/90 p-6 shadow-soft backdrop-blur"
+      className="rounded-3xl border border-clay/50 bg-paper/95 p-6 shadow-soft backdrop-blur"
     >
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-lagoon">Quick filters</p>
-          <h2 className="font-display text-2xl text-ink">Find me a cheap holiday</h2>
-          <p className="mt-2 text-sm text-ink/70">
-            No dates needed. We test multiple weeks and pick the cheapest packages.
+          <p className="text-xs uppercase tracking-[0.2em] text-ink/60">Search</p>
+          <h2 className="font-display text-2xl text-ink">Find the cheapest trip</h2>
+          <p className="mt-2 text-sm text-ink/60">
+            Set your budget. We scan multiple weeks automatically.
           </p>
         </div>
         <button
@@ -43,17 +43,17 @@ export default function SearchPanel({ params, onChange, onSubmit, isLoading }: S
           className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-white shadow-soft transition hover:-translate-y-0.5 hover:bg-accent/90"
           disabled={isLoading}
         >
-          {isLoading ? 'Searching...' : 'Search deals'}
+          {isLoading ? 'Searching...' : 'Search'}
         </button>
       </div>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <label className="flex flex-col gap-2 text-sm">
-          <span className="text-ink/70">Departure airport</span>
+          <span className="text-ink/60">Departure</span>
           <select
             value={params.origin}
             onChange={(event) => onChange({ ...params, origin: event.target.value })}
-            className="rounded-xl border border-clay/40 bg-white px-3 py-2 text-sm"
+            className="rounded-xl border border-clay/50 bg-white px-3 py-2 text-sm"
           >
             {ORIGINS.map((origin) => (
               <option key={origin.value} value={origin.value}>
@@ -64,7 +64,7 @@ export default function SearchPanel({ params, onChange, onSubmit, isLoading }: S
         </label>
 
         <label className="flex flex-col gap-2 text-sm">
-          <span className="text-ink/70">Total budget (GBP)</span>
+          <span className="text-ink/60">Total budget (GBP)</span>
           <input
             type="number"
             min={200}
@@ -74,16 +74,16 @@ export default function SearchPanel({ params, onChange, onSubmit, isLoading }: S
             onChange={(event) =>
               onChange({ ...params, maxBudget: Number(event.target.value) || 0 })
             }
-            className="rounded-xl border border-clay/40 bg-white px-3 py-2 text-sm"
+            className="rounded-xl border border-clay/50 bg-white px-3 py-2 text-sm"
           />
         </label>
 
         <label className="flex flex-col gap-2 text-sm">
-          <span className="text-ink/70">Trip length</span>
+          <span className="text-ink/60">Trip length</span>
           <select
             value={params.nights}
             onChange={(event) => onChange({ ...params, nights: Number(event.target.value) })}
-            className="rounded-xl border border-clay/40 bg-white px-3 py-2 text-sm"
+            className="rounded-xl border border-clay/50 bg-white px-3 py-2 text-sm"
           >
             {[3, 4, 5, 6, 7].map((nights) => (
               <option key={nights} value={nights}>
@@ -94,11 +94,11 @@ export default function SearchPanel({ params, onChange, onSubmit, isLoading }: S
         </label>
 
         <label className="flex flex-col gap-2 text-sm">
-          <span className="text-ink/70">Mood</span>
+          <span className="text-ink/60">Mood</span>
           <select
             value={params.mood}
             onChange={(event) => onChange({ ...params, mood: event.target.value as PackageSearchParams['mood'] })}
-            className="rounded-xl border border-clay/40 bg-white px-3 py-2 text-sm"
+            className="rounded-xl border border-clay/50 bg-white px-3 py-2 text-sm"
           >
             {MOODS.map((mood) => (
               <option key={mood.value} value={mood.value}>
@@ -109,11 +109,11 @@ export default function SearchPanel({ params, onChange, onSubmit, isLoading }: S
         </label>
 
         <label className="flex flex-col gap-2 text-sm">
-          <span className="text-ink/70">Adults</span>
+          <span className="text-ink/60">Adults</span>
           <select
             value={params.adults}
             onChange={(event) => onChange({ ...params, adults: Number(event.target.value) })}
-            className="rounded-xl border border-clay/40 bg-white px-3 py-2 text-sm"
+            className="rounded-xl border border-clay/50 bg-white px-3 py-2 text-sm"
           >
             {[1, 2, 3, 4].map((adults) => (
               <option key={adults} value={adults}>

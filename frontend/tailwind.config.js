@@ -17,10 +17,10 @@ module.exports = {
         haze: "var(--haze)"
       },
       boxShadow: {
-        soft: "0 20px 60px -40px rgba(32, 24, 16, 0.6)"
+        soft: "0 24px 60px -40px rgba(15, 15, 30, 0.3)"
       },
       backgroundImage: {
-        hero: "radial-gradient(circle at 10% 20%, rgba(246, 167, 69, 0.25), transparent 50%), radial-gradient(circle at 80% 10%, rgba(12, 109, 122, 0.2), transparent 45%), linear-gradient(130deg, #f9f3ea 0%, #fff7ed 50%, #f1efe6 100%)"
+        hero: "radial-gradient(1200px at 20% 10%, rgba(10, 132, 255, 0.16), transparent 55%), radial-gradient(800px at 80% 20%, rgba(140, 210, 255, 0.2), transparent 60%), linear-gradient(180deg, #f5f5f7 0%, #ffffff 40%, #f5f5f7 100%)"
       }
     }
   },
