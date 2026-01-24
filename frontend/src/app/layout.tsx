@@ -5,12 +5,18 @@ import './globals.css';
 const manrope = Manrope({
   subsets: ['latin'],
   variable: '--font-sans',
-  weight: ['300', '400', '500', '600', '700', '800']
+  weight: ['400', '500', '600', '700']
 });
 
 export const metadata: Metadata = {
-  title: 'The Cheapest Flights | Real holiday discovery',
-  description: 'Discover real flight-led holiday packages with transparent pricing and affiliate hotel links.'
+  title: 'CheapAsTrips | Find cheap flights, trains & hotels',
+  description: 'Compare real prices for flights, trains, and hotels to European destinations. Find the best value trips with transparent pricing.',
+  keywords: 'cheap flights, budget travel, train deals, hotel comparison, European trips, city breaks',
+  openGraph: {
+    title: 'CheapAsTrips | Find cheap flights, trains & hotels',
+    description: 'Compare real prices for flights, trains, and hotels to European destinations.',
+    type: 'website',
+  }
 };
 
 export default function RootLayout({
@@ -20,7 +26,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={manrope.variable}>
-      <body className="min-h-screen bg-sand text-ink antialiased">
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+      </head>
+      <body className="min-h-screen bg-[var(--sand)] text-[var(--ink)] antialiased">
         {children}
       </body>
     </html>

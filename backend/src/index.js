@@ -1,10 +1,10 @@
 /**
- * The Cheapest Flights - Backend API
+ * CheapAsTrips - Backend API
  *
  * This server:
  * - Holds API keys securely (never exposed to frontend)
- * - Queries Amadeus for real flight prices
- * - Queries Booking.com affiliate API for hotels
+ * - Queries Booking.com Flights/Skyscanner for flight prices (fallback to estimates)
+ * - Queries Booking.com affiliate API for hotels (fallback to estimates)
  * - Combines results into holiday packages
  * - Returns clean JSON to frontend
  */
@@ -19,6 +19,8 @@ const rateLimit = require('express-rate-limit');
 const flightRoutes = require('./routes/flights');
 const hotelRoutes = require('./routes/hotels');
 const packageRoutes = require('./routes/packages');
+const trainRoutes = require('./routes/trains');
+const addonRoutes = require('./routes/addons');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -51,6 +53,8 @@ app.get('/health', (req, res) => {
 app.use('/api/flights', flightRoutes);
 app.use('/api/hotels', hotelRoutes);
 app.use('/api/packages', packageRoutes);
+app.use('/api/trains', trainRoutes);
+app.use('/api/addons', addonRoutes);
 
 // Error handling
 app.use((err, req, res, next) => {
@@ -67,14 +71,13 @@ app.use((req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`✈️ The Cheapest Flights API running on port ${PORT}`);
+  console.log(`✈️ CheapAsTrips API running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
 
-  // Validate required env vars
-  const required = ['AMADEUS_CLIENT_ID', 'AMADEUS_CLIENT_SECRET'];
-  const missing = required.filter(key => !process.env[key]);
-  if (missing.length > 0) {
-    console.warn(`⚠️  Missing environment variables: ${missing.join(', ')}`);
-    console.warn('   Copy .env.example to .env and fill in your credentials');
+  const hasBookingFlights = Boolean(process.env.BOOKING_FLIGHTS_RAPIDAPI_KEY || process.env.RAPIDAPI_KEY);
+  const hasSkyscanner = Boolean(process.env.RAPIDAPI_KEY);
+  if (!hasBookingFlights && !hasSkyscanner) {
+    console.warn('⚠️  No flight API keys configured. Using estimated flight prices.');
+    console.warn('   Set BOOKING_FLIGHTS_RAPIDAPI_KEY (or RAPIDAPI_KEY) in .env for live prices.');
   }
 });

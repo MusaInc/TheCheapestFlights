@@ -1,88 +1,144 @@
 /**
  * Hotel Service
  *
- * Integrates with Booking.com Affiliate Partner API for real hotel data.
- *
- * IMPORTANT: This requires Booking.com Affiliate Partner approval.
- * Apply at: https://www.booking.com/affiliate-program/v2/index.html
- *
- * Until approved, this service returns placeholder structure that
- * will work with real data once credentials are provided.
- *
- * The affiliate deep links are generated correctly regardless.
+ * Uses Amadeus Hotel Search API for real hotel data.
+ * Falls back to Klook affiliate links for booking.
  */
 
+const Amadeus = require('amadeus');
 const NodeCache = require('node-cache');
 
 // Cache hotel results for 30 minutes
 const cache = new NodeCache({ stdTTL: 1800, checkperiod: 300 });
 
-// Booking.com affiliate link template
-// This works without API access - just needs affiliate ID
-const BOOKING_AFFILIATE_BASE = 'https://www.booking.com/searchresults.html';
+// Klook affiliate base URL for booking links
+const KLOOK_AFFILIATE_BASE = process.env.KLOOK_AFFILIATE_URL || 'https://klook.tpx.lu/89cfHZHx';
+
+// City to IATA code mapping for Amadeus
+const CITY_CODES = {
+  'Paris': 'PAR',
+  'London': 'LON',
+  'Barcelona': 'BCN',
+  'Rome': 'ROM',
+  'Amsterdam': 'AMS',
+  'Berlin': 'BER',
+  'Prague': 'PRG',
+  'Vienna': 'VIE',
+  'Budapest': 'BUD',
+  'Lisbon': 'LIS',
+  'Madrid': 'MAD',
+  'Milan': 'MIL',
+  'Venice': 'VCE',
+  'Brussels': 'BRU',
+  'Munich': 'MUC',
+  'Nice': 'NCE',
+  'Athens': 'ATH',
+  'Dubrovnik': 'DBV',
+  'Copenhagen': 'CPH',
+  'Stockholm': 'STO',
+  'Krakow': 'KRK',
+  'Naples': 'NAP',
+  'Porto': 'OPO',
+  'Split': 'SPU',
+  'Malaga': 'AGP',
+  'Seville': 'SVQ',
+  'Valencia': 'VLC',
+  'Lyon': 'LYS',
+  'Palma': 'PMI',
+  'Tenerife': 'TFS',
+  'Alicante': 'ALC',
+  'Faro': 'FAO',
+  'Cologne': 'CGN',
+  'Warsaw': 'WAW',
+  'Riga': 'RIX',
+  'Tallinn': 'TLL',
+  'Vilnius': 'VNO'
+};
+
+// Initialize Amadeus client
+let amadeus = null;
+
+function getClient() {
+  if (!amadeus) {
+    if (!process.env.AMADEUS_CLIENT_ID || !process.env.AMADEUS_CLIENT_SECRET) {
+      return null;
+    }
+    amadeus = new Amadeus({
+      clientId: process.env.AMADEUS_CLIENT_ID,
+      clientSecret: process.env.AMADEUS_CLIENT_SECRET,
+      hostname: process.env.NODE_ENV === 'production' ? 'production' : 'test'
+    });
+  }
+  return amadeus;
+}
 
 /**
- * Search for hotels in a city
- *
- * @param {string} city - City name
- * @param {string} checkin - Check-in date YYYY-MM-DD
- * @param {string} checkout - Check-out date YYYY-MM-DD
- * @param {number} adults - Number of adults
- * @returns {Promise<Object>} Hotel search results
+ * Generate Klook hotel search URL
+ */
+function generateKlookHotelUrl(city) {
+  const citySlug = city.toLowerCase().replace(/\s+/g, '-');
+  return `${KLOOK_AFFILIATE_BASE}?city=${citySlug}`;
+}
+
+/**
+ * Search for hotels using Amadeus API
  */
 async function searchHotels(city, checkin, checkout, adults = 2) {
   const cacheKey = `hotels:${city}:${checkin}:${checkout}:${adults}`;
   const cached = cache.get(cacheKey);
   if (cached) {
+    console.log(`Hotel cache hit: ${cacheKey}`);
     return cached;
   }
 
-  // Generate affiliate search link (works without API)
-  const affiliateId = process.env.BOOKING_AFFILIATE_ID || '';
-  const searchUrl = generateBookingSearchUrl(city, checkin, checkout, adults, affiliateId);
-
-  /**
-   * BOOKING.COM AFFILIATE API INTEGRATION
-   *
-   * When you have Booking.com Affiliate API access, replace this section with:
-   *
-   * const response = await fetch('https://distribution-xml.booking.com/2.x/json/hotels', {
-   *   headers: {
-   *     'Authorization': `Basic ${Buffer.from(`${BOOKING_USERNAME}:${BOOKING_PASSWORD}`).toString('base64')}`
-   *   },
-   *   params: {
-   *     city_ids: CITY_ID,
-   *     checkin: checkin,
-   *     checkout: checkout,
-   *     guest_qty: adults,
-   *     room_qty: 1,
-   *     rows: 10,
-   *     order_by: 'price'
-   *   }
-   * });
-   *
-   * For now, we return the search URL which is fully functional for affiliate linking.
-   */
-
-  // Calculate nights
   const checkinDate = new Date(checkin);
   const checkoutDate = new Date(checkout);
   const nights = Math.ceil((checkoutDate - checkinDate) / (1000 * 60 * 60 * 24));
+  const klookUrl = generateKlookHotelUrl(city);
 
-  // Return structure with booking link
-  // This is the minimum viable response that enables affiliate revenue
+  // Try Amadeus API first
+  const client = getClient();
+  if (client) {
+    try {
+      const hotels = await fetchAmadeusHotels(client, city, checkin, checkout, adults, klookUrl);
+      if (hotels && hotels.length > 0) {
+        const result = {
+          city,
+          checkin,
+          checkout,
+          nights,
+          adults,
+          searchUrl: klookUrl,
+          hotels,
+          source: 'amadeus',
+          isEstimate: false,
+          disclaimer: 'Real-time prices. Book on Klook for best rates.'
+        };
+        cache.set(cacheKey, result);
+        return result;
+      }
+    } catch (error) {
+      console.warn('Amadeus hotel search failed:', error.message);
+    }
+  }
+
+  // Fallback to estimates
+  const priceRange = getEstimatedPrice(city);
+  const basePrice = priceRange.min * nights;
+  const hotels = generateFallbackHotels(city, nights, basePrice, klookUrl);
+
   const result = {
-    city: city,
-    checkin: checkin,
-    checkout: checkout,
-    nights: nights,
-    adults: adults,
-    searchUrl: searchUrl,
-    // Placeholder for when API access is available
-    hotels: null,
-    // Estimated price range based on city tier
-    estimatedPricePerNight: getEstimatedPrice(city),
-    disclaimer: 'Prices shown on Booking.com. Subject to availability.'
+    city,
+    checkin,
+    checkout,
+    nights,
+    adults,
+    searchUrl: klookUrl,
+    hotels,
+    source: 'estimate',
+    isEstimate: true,
+    estimatedPricePerNight: priceRange,
+    disclaimer: 'Estimated prices. Check Klook for live availability.'
   };
 
   cache.set(cacheKey, result);
@@ -90,60 +146,184 @@ async function searchHotels(city, checkin, checkout, adults = 2) {
 }
 
 /**
- * Generate Booking.com affiliate search URL
- *
- * This is the core affiliate functionality - works without API access.
- * Users click through to Booking.com with tracking, we earn commission.
+ * Fetch hotels from Amadeus API
  */
-function generateBookingSearchUrl(city, checkin, checkout, adults, affiliateId) {
-  const params = new URLSearchParams({
-    ss: city,
-    checkin: checkin,
-    checkout: checkout,
-    group_adults: adults.toString(),
-    no_rooms: '1',
-    group_children: '0',
-    sb_travel_purpose: 'leisure',
-    // Affiliate tracking
-    aid: affiliateId || '',
-    // Sort by price
-    order: 'price'
+async function fetchAmadeusHotels(client, city, checkin, checkout, adults, klookUrl) {
+  const cityCode = CITY_CODES[city];
+  if (!cityCode) {
+    console.log(`No city code for ${city}, skipping Amadeus`);
+    return null;
+  }
+
+  // Step 1: Get hotel IDs in the city
+  console.log(`Searching hotels in ${city} (${cityCode})...`);
+
+  const hotelListResponse = await client.referenceData.locations.hotels.byCity.get({
+    cityCode: cityCode,
+    radius: 10,
+    radiusUnit: 'KM',
+    hotelSource: 'ALL'
   });
 
-  return `${BOOKING_AFFILIATE_BASE}?${params.toString()}`;
+  if (!hotelListResponse.data || hotelListResponse.data.length === 0) {
+    console.log(`No hotels found in ${city}`);
+    return null;
+  }
+
+  // Take first 20 hotels
+  const hotelIds = hotelListResponse.data.slice(0, 20).map(h => h.hotelId);
+  console.log(`Found ${hotelListResponse.data.length} hotels, checking prices for ${hotelIds.length}...`);
+
+  // Step 2: Get offers for these hotels
+  const offersResponse = await client.shopping.hotelOffersSearch.get({
+    hotelIds: hotelIds.join(','),
+    checkInDate: checkin,
+    checkOutDate: checkout,
+    adults: adults,
+    roomQuantity: 1,
+    currency: 'GBP',
+    bestRateOnly: true
+  });
+
+  if (!offersResponse.data || offersResponse.data.length === 0) {
+    console.log(`No hotel offers available for dates`);
+    return null;
+  }
+
+  // Parse hotel offers
+  const hotels = offersResponse.data
+    .filter(hotel => hotel.offers && hotel.offers.length > 0)
+    .map((hotel, index) => {
+      const offer = hotel.offers[0];
+      const price = parseFloat(offer.price?.total || '0');
+      const hotelInfo = hotel.hotel || {};
+
+      return {
+        id: hotelInfo.hotelId || `amadeus-${index}`,
+        name: hotelInfo.name || `${city} Hotel`,
+        image: getHotelImage(hotelInfo, city, index),
+        rating: parseRating(hotelInfo.rating),
+        price: Math.round(price),
+        pricePerNight: Math.round(price / Math.max(1, Math.ceil((new Date(checkout) - new Date(checkin)) / (1000 * 60 * 60 * 24)))),
+        bookingLink: klookUrl,
+        address: formatAddress(hotelInfo),
+        amenities: offer.room?.description?.text || '',
+        source: 'amadeus'
+      };
+    })
+    .filter(h => h.price > 0)
+    .sort((a, b) => a.price - b.price);
+
+  console.log(`Got ${hotels.length} hotels with prices`);
+  return hotels;
 }
 
 /**
- * Generate direct hotel booking link with affiliate tracking
+ * Get hotel image - Amadeus doesn't always provide images
  */
-function generateHotelDeepLink(hotelId, checkin, checkout, affiliateId) {
-  const params = new URLSearchParams({
-    checkin: checkin,
-    checkout: checkout,
-    aid: affiliateId || ''
-  });
+function getHotelImage(hotelInfo, city, index) {
+  // Check if Amadeus provides media
+  if (hotelInfo.media && hotelInfo.media.length > 0) {
+    return hotelInfo.media[0].uri;
+  }
 
-  return `https://www.booking.com/hotel/${hotelId}.html?${params.toString()}`;
+  // Fallback to quality stock hotel images
+  const fallbackImages = [
+    'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1584132967334-10e028bd69f7?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=800&q=80'
+  ];
+
+  const hash = city.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return fallbackImages[(hash + index) % fallbackImages.length];
+}
+
+/**
+ * Parse hotel rating
+ */
+function parseRating(rating) {
+  if (!rating) return 0;
+  // Amadeus uses 1-5 stars, convert to 1-10 scale
+  const stars = parseInt(rating, 10);
+  if (stars >= 1 && stars <= 5) {
+    return stars * 2; // 5 stars = 10, 4 stars = 8, etc.
+  }
+  return 0;
+}
+
+/**
+ * Format hotel address
+ */
+function formatAddress(hotelInfo) {
+  if (hotelInfo.address) {
+    const addr = hotelInfo.address;
+    return [addr.lines?.[0], addr.cityName, addr.countryCode]
+      .filter(Boolean)
+      .join(', ');
+  }
+  return '';
+}
+
+/**
+ * Generate fallback hotels when API unavailable
+ */
+function generateFallbackHotels(city, nights, basePrice, klookUrl) {
+  const hotelTypes = [
+    { prefix: '', suffix: 'Central Hotel', multiplier: 0.85 },
+    { prefix: '', suffix: 'City Inn', multiplier: 0.9 },
+    { prefix: 'Hotel ', suffix: '', multiplier: 1.0 },
+    { prefix: '', suffix: ' Suites', multiplier: 1.15 },
+    { prefix: 'Grand ', suffix: ' Hotel', multiplier: 1.35 }
+  ];
+
+  const fallbackImages = [
+    'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80',
+    'https://images.unsplash.com/photo-1584132967334-10e028bd69f7?auto=format&fit=crop&w=800&q=80'
+  ];
+
+  return hotelTypes.map((type, index) => {
+    const name = `${type.prefix}${city}${type.suffix}`.trim();
+    const price = Math.round(basePrice * type.multiplier);
+    const rating = 7 + index * 0.5;
+
+    return {
+      id: `fallback-${city.toLowerCase().replace(/\s+/g, '-')}-${index}`,
+      name,
+      image: fallbackImages[index],
+      rating: Math.round(rating * 10) / 10,
+      price,
+      pricePerNight: Math.round(price / nights),
+      bookingLink: klookUrl,
+      address: `City Center, ${city}`,
+      source: 'estimate'
+    };
+  });
 }
 
 /**
  * Get estimated price per night based on city tier
- * This is used when real API data isn't available
  */
 function getEstimatedPrice(city) {
-  const expensiveCities = ['Paris', 'Amsterdam', 'Copenhagen', 'Stockholm', 'Venice'];
-  const midRangeCities = ['Barcelona', 'Madrid', 'Rome', 'Berlin', 'Vienna', 'Prague', 'Lisbon'];
-  const budgetCities = ['Krakow', 'Budapest', 'Riga', 'Tallinn', 'Vilnius', 'Warsaw'];
+  const expensiveCities = ['Paris', 'Amsterdam', 'Copenhagen', 'Stockholm', 'Venice', 'Milan', 'Nice'];
+  const midRangeCities = ['Barcelona', 'Madrid', 'Rome', 'Berlin', 'Vienna', 'Prague', 'Lisbon', 'Brussels', 'Munich'];
+  const budgetCities = ['Krakow', 'Budapest', 'Riga', 'Tallinn', 'Vilnius', 'Warsaw', 'Split', 'Naples'];
 
   if (expensiveCities.includes(city)) {
-    return { min: 80, max: 150 };
+    return { min: 75, max: 140 };
   } else if (midRangeCities.includes(city)) {
-    return { min: 50, max: 100 };
+    return { min: 50, max: 95 };
   } else if (budgetCities.includes(city)) {
-    return { min: 30, max: 70 };
+    return { min: 30, max: 65 };
   }
-
-  return { min: 40, max: 90 }; // Default
+  return { min: 45, max: 85 };
 }
 
 /**
@@ -160,8 +340,8 @@ function calculateHotelEstimate(city, nights) {
 
 module.exports = {
   searchHotels,
-  generateBookingSearchUrl,
-  generateHotelDeepLink,
+  generateKlookHotelUrl,
   getEstimatedPrice,
-  calculateHotelEstimate
+  calculateHotelEstimate,
+  KLOOK_AFFILIATE_BASE
 };

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import Map, { Marker, NavigationControl, MapRef } from 'react-map-gl';
+import Map, { Marker, NavigationControl, MapRef } from 'react-map-gl/maplibre';
 import type { PackageDeal } from '../lib/types';
 import { formatMoney } from '../lib/format';
 
@@ -19,7 +19,8 @@ type PackageMapProps = {
 
 export default function PackageMap({ packages, selectedId, onSelect }: PackageMapProps) {
   const mapRef = useRef<MapRef | null>(null);
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
+  const mapStyle =
+    process.env.NEXT_PUBLIC_MAP_STYLE_URL || 'https://demotiles.maplibre.org/style.json';
 
   const selectedPackage = useMemo(
     () => packages.find((item) => item.id === selectedId) || null,
@@ -52,26 +53,19 @@ export default function PackageMap({ packages, selectedId, onSelect }: PackageMa
     });
   }, [packages]);
 
-  if (!token) {
-    return (
-      <div className="flex h-[420px] w-full items-center justify-center rounded-3xl border border-clay/30 bg-white/70 text-sm text-ink/70">
-        Mapbox token missing. Add `NEXT_PUBLIC_MAPBOX_TOKEN` to `frontend/.env.local`.
-      </div>
-    );
-  }
-
   return (
-    <div className="relative h-[420px] w-full overflow-hidden rounded-3xl border border-clay/50 bg-white shadow-soft">
+    <div className="relative h-[320px] md:h-[380px] w-full bg-[var(--border-light)]">
       <Map
         ref={mapRef}
-        mapboxAccessToken={token}
         initialViewState={DEFAULT_VIEW}
-        mapStyle="mapbox://styles/mapbox/light-v11"
+        mapStyle={mapStyle}
+        style={{ width: '100%', height: '100%' }}
       >
-        <NavigationControl position="bottom-right" />
+        <NavigationControl position="bottom-right" showCompass={false} />
 
         {packages.map((deal) => {
           const isActive = selectedId === deal.id;
+          const isTrain = deal.transportType === 'train';
           return (
             <Marker
               key={deal.id}
@@ -85,12 +79,14 @@ export default function PackageMap({ packages, selectedId, onSelect }: PackageMa
             >
               <button
                 type="button"
-                className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold transition-all ${
                   isActive
-                    ? 'border-ink bg-ink text-white'
-                    : 'border-clay/50 bg-white text-ink'
+                    ? 'border-[var(--ink)] bg-[var(--ink)] text-white scale-110 shadow-lg z-10'
+                    : 'border-[var(--border)] bg-white text-[var(--ink)] hover:border-[var(--ink)] hover:shadow-md'
                 }`}
+                style={{ transform: isActive ? 'scale(1.1)' : 'scale(1)' }}
               >
+                <span className="text-[10px]">{isTrain ? '🚄' : '✈️'}</span>
                 {formatMoney(deal.totalPrice, deal.currency)}
               </button>
             </Marker>
@@ -98,13 +94,27 @@ export default function PackageMap({ packages, selectedId, onSelect }: PackageMa
         })}
       </Map>
 
-      {selectedPackage ? (
-        <div className="absolute left-4 top-4 rounded-2xl border border-clay/50 bg-white/90 px-4 py-3 text-sm shadow-soft backdrop-blur">
-          <p className="text-xs uppercase tracking-[0.2em] text-ink/60">Selected</p>
-          <p className="font-display text-lg text-ink">{selectedPackage.city}</p>
-          <p className="text-xs text-ink/50">{selectedPackage.country}</p>
+      {/* Selected Location Card */}
+      {selectedPackage && (
+        <div className="absolute left-3 top-3 max-w-[200px] rounded-xl border border-[var(--border-light)] bg-white p-3 shadow-[var(--shadow-md)]">
+          <p className="text-xs font-medium text-[var(--ink-muted)]">Selected</p>
+          <p className="font-semibold text-[var(--ink)]">{selectedPackage.city}</p>
+          <p className="text-xs text-[var(--ink-muted)]">{selectedPackage.country}</p>
+          <p className="mt-1 text-sm font-bold text-[var(--ink)]">
+            {formatMoney(selectedPackage.totalPrice, selectedPackage.currency)}
+          </p>
         </div>
-      ) : null}
+      )}
+
+      {/* Map Legend */}
+      <div className="absolute bottom-3 left-3 flex items-center gap-3 rounded-lg bg-white/90 px-3 py-2 text-[10px] text-[var(--ink-muted)] backdrop-blur-sm">
+        <span className="flex items-center gap-1">
+          <span>✈️</span> Flight
+        </span>
+        <span className="flex items-center gap-1">
+          <span>🚄</span> Train
+        </span>
+      </div>
     </div>
   );
 }

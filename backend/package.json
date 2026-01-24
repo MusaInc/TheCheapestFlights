@@ -1,7 +1,7 @@
 {
   "name": "thecheapestflights-backend",
   "version": "1.0.0",
-  "description": "Backend API for The Cheapest Flights - holiday discovery platform",
+  "description": "Backend API for CheapAsTrips - holiday discovery platform",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

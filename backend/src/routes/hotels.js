@@ -37,12 +37,45 @@ router.get('/search', async (req, res) => {
       });
     }
 
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(checkin) || !dateRegex.test(checkout)) {
+      return res.status(400).json({
+        error: 'Invalid date format. Use YYYY-MM-DD'
+      });
+    }
+
+    const checkinDate = new Date(checkin);
+    const checkoutDate = new Date(checkout);
+    if (!(checkinDate instanceof Date) || Number.isNaN(checkinDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid checkin date' });
+    }
+    if (!(checkoutDate instanceof Date) || Number.isNaN(checkoutDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid checkout date' });
+    }
+    if (checkoutDate <= checkinDate) {
+      return res.status(400).json({
+        error: 'Checkout must be after checkin'
+      });
+    }
+
+    const parsedAdults = parseInt(adults, 10);
+    const sanitizedAdults = Number.isFinite(parsedAdults) && parsedAdults > 0 ? parsedAdults : 2;
+
     const results = await hotelService.searchHotels(
       city,
       checkin,
       checkout,
-      parseInt(adults)
+      sanitizedAdults
     );
+
+    const hasLiveHotels = Boolean(process.env.RAPIDAPI_KEY && process.env.RAPIDAPI_HOST);
+    const requireLiveHotels = process.env.REQUIRE_LIVE_HOTELS === 'true' && hasLiveHotels;
+    if (requireLiveHotels && results.source !== 'rapidapi') {
+      return res.status(404).json({
+        error: 'Live hotel data required but unavailable for this search',
+        city
+      });
+    }
 
     res.json({
       success: true,
@@ -79,12 +112,35 @@ router.get('/link', (req, res) => {
     });
   }
 
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(checkin) || !dateRegex.test(checkout)) {
+    return res.status(400).json({
+      error: 'Invalid date format. Use YYYY-MM-DD'
+    });
+  }
+
+  const checkinDate = new Date(checkin);
+  const checkoutDate = new Date(checkout);
+  if (!(checkinDate instanceof Date) || Number.isNaN(checkinDate.getTime())) {
+    return res.status(400).json({ error: 'Invalid checkin date' });
+  }
+  if (!(checkoutDate instanceof Date) || Number.isNaN(checkoutDate.getTime())) {
+    return res.status(400).json({ error: 'Invalid checkout date' });
+  }
+  if (checkoutDate <= checkinDate) {
+    return res.status(400).json({
+      error: 'Checkout must be after checkin'
+    });
+  }
+
   const affiliateId = process.env.BOOKING_AFFILIATE_ID || '';
+  const parsedAdults = parseInt(adults, 10);
+  const sanitizedAdults = Number.isFinite(parsedAdults) && parsedAdults > 0 ? parsedAdults : 2;
   const searchUrl = hotelService.generateBookingSearchUrl(
     city,
     checkin,
     checkout,
-    parseInt(adults),
+    sanitizedAdults,
     affiliateId
   );
 
@@ -109,13 +165,15 @@ router.get('/estimate', (req, res) => {
     });
   }
 
-  const estimate = hotelService.calculateHotelEstimate(city, parseInt(nights));
+  const parsedNights = parseInt(nights, 10);
+  const sanitizedNights = Number.isFinite(parsedNights) && parsedNights > 0 ? parsedNights : 4;
+  const estimate = hotelService.calculateHotelEstimate(city, sanitizedNights);
 
   res.json({
     success: true,
     data: {
       city,
-      nights: parseInt(nights),
+      nights: sanitizedNights,
       ...estimate
     },
     disclaimer: 'These are estimated prices. Actual prices shown on Booking.com.'

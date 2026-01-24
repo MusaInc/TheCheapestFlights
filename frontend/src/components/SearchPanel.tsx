@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { PackageSearchParams } from '../lib/types';
 
 interface SearchPanelProps {
@@ -10,124 +10,240 @@ interface SearchPanelProps {
   isLoading: boolean;
 }
 
+const TRANSPORT_OPTIONS = [
+  { value: 'any', label: 'Any', description: 'Best price' },
+  { value: 'flight', label: 'Flight', description: 'Fastest' },
+  { value: 'train', label: 'Train', description: 'Eco-friendly' },
+] as const;
+
+const MOOD_OPTIONS = [
+  { value: 'random', label: 'All', icon: '🌍' },
+  { value: 'sun', label: 'Beach', icon: '🏖️' },
+  { value: 'city', label: 'City', icon: '🏙️' },
+  { value: 'romantic', label: 'Romantic', icon: '💕' },
+  { value: 'adventure', label: 'Adventure', icon: '🏔️' },
+  { value: 'chill', label: 'Chill', icon: '🧘' },
+] as const;
+
+const ORIGIN_SUGGESTIONS = [
+  { code: 'LON', name: 'London' },
+  { code: 'MAN', name: 'Manchester' },
+  { code: 'BHX', name: 'Birmingham' },
+  { code: 'EDI', name: 'Edinburgh' },
+  { code: 'DUB', name: 'Dublin' },
+];
+
 export default function SearchPanel({ params, onChange, onSubmit, isLoading }: SearchPanelProps) {
   const [localBudget, setLocalBudget] = useState(params.maxBudget);
+  const normalizedOrigin = params.origin.trim().toUpperCase();
+
+  useEffect(() => {
+    setLocalBudget(params.maxBudget);
+  }, [params.maxBudget]);
 
   const handleBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
     setLocalBudget(val);
+    onChange({ ...params, maxBudget: val });
   };
 
-  const handleBudgetCommit = () => {
-    onChange({ ...params, maxBudget: localBudget });
+  const currentTransport = params.transportType || 'any';
+  const isTrainOnly = currentTransport === 'train';
+  const showTrainWarning = isTrainOnly && !['LON', 'LONDON'].includes(normalizedOrigin);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit();
   };
 
   return (
-    <div className="flex flex-col gap-5">
-      
-      {/* Origin Input */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
-          Flying From
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+
+      {/* Transport Type */}
+      <fieldset className="space-y-2">
+        <legend className="text-xs font-medium text-[var(--ink-muted)] uppercase tracking-wide">
+          Travel by
+        </legend>
+        <div className="grid grid-cols-3 gap-2">
+          {TRANSPORT_OPTIONS.map((opt) => {
+            const isActive = currentTransport === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => onChange({ ...params, transportType: opt.value })}
+                className={`relative rounded-xl px-3 py-3 text-center transition-all ${
+                  isActive
+                    ? 'bg-[var(--ink)] text-white'
+                    : 'bg-[var(--border-light)] text-[var(--ink)] hover:bg-[var(--border)]'
+                }`}
+              >
+                <span className="block text-sm font-semibold">{opt.label}</span>
+                <span className={`block text-[10px] mt-0.5 ${isActive ? 'text-white/70' : 'text-[var(--ink-muted)]'}`}>
+                  {opt.description}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {currentTransport === 'train' && (
+          <p className="flex items-center gap-1.5 text-xs text-[var(--success)]">
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            90% less CO2 than flying
+          </p>
+        )}
+      </fieldset>
+
+      {/* Origin */}
+      <div className="space-y-2">
+        <label htmlFor="origin" className="text-xs font-medium text-[var(--ink-muted)] uppercase tracking-wide">
+          Departing from
         </label>
         <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg">🛫</span>
           <input
+            id="origin"
             type="text"
             value={params.origin}
-            onChange={(e) => onChange({ ...params, origin: e.target.value.toUpperCase() })}
-            className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-10 pr-4 font-bold text-gray-900 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
-            placeholder="LON"
-            maxLength={3}
+            onChange={(e) => onChange({ ...params, origin: e.target.value })}
+            className="w-full rounded-xl border border-[var(--border)] bg-white py-3 px-4 text-[var(--ink)] font-medium placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] transition-colors"
+            placeholder="London"
+            list="origin-list"
+            autoComplete="off"
           />
+          <datalist id="origin-list">
+            {ORIGIN_SUGGESTIONS.map((item) => (
+              <option key={item.code} value={item.code}>
+                {item.name}
+              </option>
+            ))}
+          </datalist>
         </div>
+        {showTrainWarning && (
+          <p className="flex items-center gap-1.5 text-xs text-[var(--warning)]">
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            Train routes only from London
+          </p>
+        )}
       </div>
 
-      {/* Mood Selector */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
-          Trip Vibe
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          {['random', 'romantic', 'city', 'chill'].map((m) => (
-            <button
-              key={m}
-              onClick={() => onChange({ ...params, mood: m as any })}
-              className={`rounded-lg py-2 text-xs font-bold capitalize transition-all ${
-                params.mood === m
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
-                  : 'bg-white text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              {m}
-            </button>
-          ))}
+      {/* Trip Vibe */}
+      <fieldset className="space-y-2">
+        <legend className="text-xs font-medium text-[var(--ink-muted)] uppercase tracking-wide">
+          Trip vibe
+        </legend>
+        <div className="grid grid-cols-3 gap-1.5">
+          {MOOD_OPTIONS.map((m) => {
+            const isActive = params.mood === m.value;
+            return (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => onChange({ ...params, mood: m.value as any })}
+                className={`flex items-center justify-center gap-1.5 rounded-lg py-2 px-2 text-xs font-medium transition-all ${
+                  isActive
+                    ? 'bg-[var(--accent)] text-white'
+                    : 'bg-[var(--border-light)] text-[var(--ink)] hover:bg-[var(--border)]'
+                }`}
+              >
+                <span>{m.icon}</span>
+                <span>{m.label}</span>
+              </button>
+            );
+          })}
         </div>
-      </div>
+      </fieldset>
 
-      {/* Travelers & Nights (Row) */}
+      {/* Travelers & Nights */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
+        <div className="space-y-2">
+          <label htmlFor="adults" className="text-xs font-medium text-[var(--ink-muted)] uppercase tracking-wide">
             Adults
           </label>
-          <input
-            type="number"
-            min={1}
-            max={9}
-            value={params.adults}
-            onChange={(e) => onChange({ ...params, adults: Number(e.target.value) })}
-            className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 font-bold text-gray-900 focus:border-blue-500 focus:bg-white focus:outline-none"
-          />
+          <div className="relative">
+            <select
+              id="adults"
+              value={params.adults}
+              onChange={(e) => onChange({ ...params, adults: Number(e.target.value) })}
+              className="w-full appearance-none rounded-xl border border-[var(--border)] bg-white py-3 px-4 text-[var(--ink)] font-medium focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] transition-colors"
+            >
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+            <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--ink-muted)] pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
         </div>
-        <div className="space-y-1.5">
-           <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
+        <div className="space-y-2">
+          <label htmlFor="nights" className="text-xs font-medium text-[var(--ink-muted)] uppercase tracking-wide">
             Nights
           </label>
-          <input
-            type="number"
-            min={1}
-            max={28}
-            value={params.nights}
-            onChange={(e) => onChange({ ...params, nights: Number(e.target.value) })}
-            className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 font-bold text-gray-900 focus:border-blue-500 focus:bg-white focus:outline-none"
-          />
+          <div className="relative">
+            <select
+              id="nights"
+              value={params.nights}
+              onChange={(e) => onChange({ ...params, nights: Number(e.target.value) })}
+              className="w-full appearance-none rounded-xl border border-[var(--border)] bg-white py-3 px-4 text-[var(--ink)] font-medium focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] transition-colors"
+            >
+              {[2, 3, 4, 5, 6, 7, 10, 14].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+            <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--ink-muted)] pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
         </div>
       </div>
 
-      {/* Budget Slider */}
-      <div className="space-y-3 rounded-xl bg-blue-50 p-4">
-        <div className="flex justify-between">
-          <label className="text-xs font-bold uppercase tracking-wider text-blue-800">
-            Max Budget
+      {/* Budget */}
+      <div className="space-y-3 rounded-xl bg-[var(--cream)] p-4">
+        <div className="flex items-center justify-between">
+          <label htmlFor="budget" className="text-xs font-medium text-[var(--ink-muted)] uppercase tracking-wide">
+            Max budget
           </label>
-          <span className="font-bold text-blue-700">£{localBudget}</span>
+          <span className="text-lg font-bold text-[var(--ink)]">£{localBudget.toLocaleString()}</span>
         </div>
         <input
+          id="budget"
           type="range"
           min={200}
           max={5000}
           step={50}
           value={localBudget}
           onChange={handleBudgetChange}
-          onMouseUp={handleBudgetCommit}
-          onTouchEnd={handleBudgetCommit}
-          className="h-2 w-full cursor-pointer appearance-none rounded-full bg-blue-200 accent-blue-600"
+          className="w-full h-2 cursor-pointer appearance-none rounded-full bg-[var(--border)] accent-[var(--accent)]"
         />
-        <div className="flex justify-between text-[10px] text-blue-400">
+        <div className="flex justify-between text-[10px] text-[var(--ink-faint)]">
           <span>£200</span>
-          <span>£5k+</span>
+          <span>Total per person</span>
+          <span>£5,000</span>
         </div>
       </div>
 
-      {/* Search Button */}
+      {/* Submit */}
       <button
-        onClick={onSubmit}
+        type="submit"
         disabled={isLoading}
-        className="mt-2 w-full rounded-xl bg-gray-900 py-4 font-bold text-white shadow-lg transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-70"
+        className="w-full rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-white transition-all hover:bg-[#1d4ed8] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        {isLoading ? 'Searching...' : 'Find Cheapest Trip 🔎'}
+        {isLoading ? (
+          <span className="flex items-center justify-center gap-2">
+            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            Searching...
+          </span>
+        ) : (
+          'Search deals'
+        )}
       </button>
-    </div>
+    </form>
   );
 }

@@ -66,7 +66,7 @@ const DESTINATIONS = [
 
 // London airports as origin
 const LONDON_AIRPORTS = ['LHR', 'LGW', 'STN', 'LTN', 'SEN'];
-const DEFAULT_ORIGIN = 'LON'; // Amadeus accepts LON for all London airports
+const DEFAULT_ORIGIN = 'LON'; // City code covering London airports
 
 module.exports = {
   DESTINATIONS,

@@ -52,6 +52,8 @@ async function searchFlights(origin, destination, departureDate, returnDate, adu
 
   try {
     const client = getClient();
+    const maxOffers = parseInt(process.env.AMADEUS_MAX_OFFERS, 10);
+    const offerLimit = Number.isFinite(maxOffers) && maxOffers > 0 ? maxOffers : 10;
 
     const response = await client.shopping.flightOffersSearch.get({
       originLocationCode: origin,
@@ -60,7 +62,7 @@ async function searchFlights(origin, destination, departureDate, returnDate, adu
       returnDate: returnDate,
       adults: adults,
       currencyCode: 'GBP',
-      max: 5, // Get top 5 cheapest options
+      max: offerLimit, // Get a wider set of options for cheaper picks
       nonStop: false // Include connecting flights for cheaper options
     });
 
@@ -68,8 +70,19 @@ async function searchFlights(origin, destination, departureDate, returnDate, adu
       return null;
     }
 
-    // Parse the cheapest offer
-    const cheapestOffer = response.data[0];
+    const cheapestOffer = response.data.reduce((cheapest, offer) => {
+      const offerPrice = Number.parseFloat(offer?.price?.total ?? '');
+      if (!Number.isFinite(offerPrice)) return cheapest;
+      if (!cheapest) return offer;
+      const cheapestPrice = Number.parseFloat(cheapest?.price?.total ?? '');
+      if (!Number.isFinite(cheapestPrice)) return offer;
+      return offerPrice < cheapestPrice ? offer : cheapest;
+    }, null);
+
+    if (!cheapestOffer) {
+      return null;
+    }
+
     const result = parseFlightOffer(cheapestOffer, destination);
 
     cache.set(cacheKey, result);

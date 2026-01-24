@@ -1,13 +1,13 @@
 /**
  * Flight Routes
  *
- * Endpoints for searching flights via Amadeus API.
- * All prices returned are REAL from the API.
+ * Endpoints for searching flights via Booking.com/Skyscanner/estimates.
+ * Prices may be real or estimated based on source availability.
  */
 
 const express = require('express');
 const router = express.Router();
-const amadeusService = require('../services/amadeus');
+const flightService = require('../services/flights');
 const { DEFAULT_ORIGIN } = require('../config/destinations');
 
 /**
@@ -48,13 +48,51 @@ router.get('/search', async (req, res) => {
       });
     }
 
-    const flight = await amadeusService.searchFlights(
-      origin,
-      destination,
+    const departure = new Date(departureDate);
+    const inbound = new Date(returnDate);
+    if (!(departure instanceof Date) || Number.isNaN(departure.getTime())) {
+      return res.status(400).json({ error: 'Invalid departure date' });
+    }
+    if (!(inbound instanceof Date) || Number.isNaN(inbound.getTime())) {
+      return res.status(400).json({ error: 'Invalid return date' });
+    }
+    if (inbound <= departure) {
+      return res.status(400).json({
+        error: 'Return date must be after departure date'
+      });
+    }
+
+    const iataRegex = /^[A-Z]{3}$/;
+    const originCode = String(origin).trim().toUpperCase();
+    const destinationCode = String(destination).trim().toUpperCase();
+    if (!iataRegex.test(originCode) || !iataRegex.test(destinationCode)) {
+      return res.status(400).json({
+        error: 'Invalid IATA code. Use 3-letter airport or city codes.'
+      });
+    }
+
+    const parsedAdults = parseInt(adults, 10);
+    const sanitizedAdults = Number.isFinite(parsedAdults) && parsedAdults > 0 ? parsedAdults : 2;
+
+    const flight = await flightService.searchFlights(
+      originCode,
+      destinationCode,
       departureDate,
       returnDate,
-      parseInt(adults)
+      sanitizedAdults
     );
+
+    const hasLiveFlights = Boolean(
+      process.env.BOOKING_FLIGHTS_RAPIDAPI_KEY || process.env.RAPIDAPI_KEY
+    );
+    const requireLiveFlights = process.env.REQUIRE_LIVE_FLIGHTS === 'true' && hasLiveFlights;
+    if (flight && requireLiveFlights && flight.isRealPrice === false) {
+      return res.status(404).json({
+        error: 'Live flight data required but unavailable for this search',
+        destination,
+        dates: { departureDate, returnDate }
+      });
+    }
 
     if (!flight) {
       return res.status(404).json({
@@ -67,7 +105,9 @@ router.get('/search', async (req, res) => {
     res.json({
       success: true,
       data: flight,
-      disclaimer: 'Prices are provided by Amadeus and subject to availability.'
+      disclaimer: flight.isRealPrice
+        ? 'Prices are provided by live sources and subject to availability.'
+        : 'Prices are estimated. Click through to see live availability.'
     });
 
   } catch (error) {
@@ -83,19 +123,19 @@ router.get('/search', async (req, res) => {
  * GET /api/flights/inspiration
  *
  * Get cheapest flight destinations from origin
- * Uses Amadeus Flight Inspiration Search
+ * Uses estimated pricing with live booking links
  */
 router.get('/inspiration', async (req, res) => {
   try {
     const { origin = DEFAULT_ORIGIN } = req.query;
 
-    const destinations = await amadeusService.searchFlightInspiration(origin);
+    const destinations = await flightService.searchFlightInspiration(origin);
 
     res.json({
       success: true,
       data: destinations,
       count: destinations.length,
-      disclaimer: 'Prices are provided by Amadeus and subject to availability.'
+      disclaimer: 'Prices are estimated. Click through to see live availability.'
     });
 
   } catch (error) {
