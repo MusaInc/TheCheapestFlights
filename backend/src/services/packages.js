@@ -57,6 +57,34 @@ function resolveDateSamples(value, fallback = 5) {
   return parsed;
 }
 
+function buildBookingAffiliateLink(city, checkin, checkout, adults = 2, maxPrice, affiliateId) {
+  const params = new URLSearchParams({
+    ss: city,
+    checkin,
+    checkout,
+    group_adults: adults.toString(),
+    no_rooms: '1',
+    group_children: '0',
+    sb_travel_purpose: 'leisure',
+    order: 'price',
+    selected_currency: 'GBP'
+  });
+
+  // Encourage higher-rated stays
+  params.set('nflt', 'review_score%3D90');
+
+  // Best-effort price ceiling (may be ignored by Booking if unsupported)
+  if (Number.isFinite(maxPrice) && maxPrice > 0) {
+    params.set('price_max', Math.round(maxPrice));
+  }
+
+  if (affiliateId) {
+    params.set('aid', affiliateId);
+  }
+
+  return `https://www.booking.com/searchresults.html?${params.toString()}`;
+}
+
 async function mapWithConcurrency(items, limit, mapper) {
   const results = new Array(items.length);
   let index = 0;
@@ -154,6 +182,7 @@ async function searchPackages(options = {}) {
   const requireLiveFlights = process.env.REQUIRE_LIVE_FLIGHTS === 'true' && hasLiveFlights;
   const requireLiveHotels = process.env.REQUIRE_LIVE_HOTELS === 'true' && hasLiveHotels;
   const requireHotelImages = process.env.REQUIRE_HOTEL_IMAGES === 'true' && hasLiveHotels;
+  const affiliateId = process.env.BOOKING_AFFILIATE_ID || '';
 
   // Search flights and hotels with a concurrency cap per destination batch
   const results = await mapWithConcurrency(destinations, concurrency, async (dest) => {
@@ -280,6 +309,7 @@ async function searchPackages(options = {}) {
       const hotelPrice = cheapestHotel ? cheapestHotel.price : fallbackHotelPrice;
       const totalEstimate = bestTransport.price + hotelPrice;
       const isOverBudget = !relaxBudget && maxBudget > 0 && totalEstimate > maxBudget;
+      const hotelBudgetCap = maxBudget > 0 ? Math.max(50, maxBudget - bestTransport.price) : null;
 
       // Skip if over budget unless relaxBudget is enabled
       if (isOverBudget) {
@@ -367,7 +397,18 @@ async function searchPackages(options = {}) {
         // Hotel details (search URL + estimate)
         hotel: {
           searchUrl: hotelSearch.searchUrl,
-          bookingLink: imageHotel?.bookingLink || cheapestHotel?.bookingLink || hotelSearch.searchUrl,
+          bookingLink:
+            buildBookingAffiliateLink(
+              dest.city,
+              bestTransport.outboundDate,
+              bestTransport.returnDate,
+              adults,
+              hotelBudgetCap,
+              affiliateId
+            ) ||
+            imageHotel?.bookingLink ||
+            cheapestHotel?.bookingLink ||
+            hotelSearch.searchUrl,
           partnerLink: partnerLink || null,
           partnerName: partnerLink ? 'Klook' : undefined,
           id: imageHotel?.id || cheapestHotel?.id || `${dest.iata}-${Date.now()}`,
