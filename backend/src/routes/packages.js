@@ -9,6 +9,7 @@
 const express = require('express');
 const router = express.Router();
 const packageService = require('../services/packages');
+const manualPackagesService = require('../services/manualPackages');
 const { DEFAULT_ORIGIN } = require('../config/destinations');
 
 const VALID_MOODS = new Set(['sun', 'city', 'random', 'romantic', 'adventure', 'chill', 'train']);
@@ -69,6 +70,7 @@ router.get('/search', async (req, res) => {
 
     const transportTypeValue = String(transportType).toLowerCase();
     const parsedTransportType = VALID_TRANSPORT_TYPES.has(transportTypeValue) ? transportTypeValue : 'any';
+    const manualCutoffDays = toPositiveInt(process.env.MANUAL_PACKAGE_CUTOFF_DAYS, 14, { min: 1, max: 90 });
 
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     const hasDeparture = Boolean(departureDate);
@@ -124,12 +126,17 @@ router.get('/search', async (req, res) => {
       relaxMood: relaxMoodEnabled,
       fixedDates
     });
+    const manualPackages = manualPackagesService.getManualPackages({
+      origin: normalizedOrigin,
+      cutoffDays: manualCutoffDays
+    });
 
     res.json({
       success: true,
       count: packages.length,
       data: packages,
       exactMatch,
+      manualPackages,
       searchParams: {
         origin: normalizedOrigin,
         maxBudget: parsedBudget,

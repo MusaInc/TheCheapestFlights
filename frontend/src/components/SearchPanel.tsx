@@ -36,10 +36,23 @@ const ORIGIN_SUGGESTIONS = [
 export default function SearchPanel({ params, onChange, onSubmit, isLoading }: SearchPanelProps) {
   const [localBudget, setLocalBudget] = useState(params.maxBudget);
   const normalizedOrigin = params.origin.trim().toUpperCase();
+  const matchedOrigin = ORIGIN_SUGGESTIONS.find(
+    (item) => item.code === normalizedOrigin || item.name.toUpperCase() === normalizedOrigin
+  );
+  const [originMode, setOriginMode] = useState<'preset' | 'custom'>(matchedOrigin ? 'preset' : 'custom');
+  const [customOrigin, setCustomOrigin] = useState(matchedOrigin ? '' : params.origin);
 
   useEffect(() => {
     setLocalBudget(params.maxBudget);
   }, [params.maxBudget]);
+
+  useEffect(() => {
+    const isPreset = Boolean(matchedOrigin);
+    setOriginMode(isPreset ? 'preset' : 'custom');
+    if (!isPreset) {
+      setCustomOrigin(params.origin);
+    }
+  }, [params.origin, matchedOrigin]);
 
   const handleBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = Number(e.target.value);
@@ -50,6 +63,27 @@ export default function SearchPanel({ params, onChange, onSubmit, isLoading }: S
   const currentTransport = params.transportType || 'any';
   const isTrainOnly = currentTransport === 'train';
   const showTrainWarning = isTrainOnly && !['LON', 'LONDON'].includes(normalizedOrigin);
+  const originSelectValue = originMode === 'custom' ? 'CUSTOM' : (matchedOrigin?.code || 'LON');
+
+  const handleTransportChange = (value: typeof currentTransport) => {
+    if (value === 'train' && !['LON', 'LONDON'].includes(normalizedOrigin)) {
+      setOriginMode('preset');
+      setCustomOrigin('');
+      onChange({ ...params, transportType: value, origin: 'LON' });
+      return;
+    }
+    onChange({ ...params, transportType: value });
+  };
+
+  const handleOriginSelect = (value: string) => {
+    if (value === 'CUSTOM') {
+      setOriginMode('custom');
+      onChange({ ...params, origin: customOrigin });
+      return;
+    }
+    setOriginMode('preset');
+    onChange({ ...params, origin: value });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,7 +105,7 @@ export default function SearchPanel({ params, onChange, onSubmit, isLoading }: S
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => onChange({ ...params, transportType: opt.value })}
+                onClick={() => handleTransportChange(opt.value)}
                 className={`relative rounded-xl px-3 py-3 text-center transition-all ${
                   isActive
                     ? 'bg-[var(--ink)] text-white'
@@ -99,26 +133,40 @@ export default function SearchPanel({ params, onChange, onSubmit, isLoading }: S
       {/* Origin */}
       <div className="space-y-2">
         <label htmlFor="origin" className="text-xs font-medium text-[var(--ink-muted)] uppercase tracking-wide">
-          Departing from
+          Flying from
         </label>
-        <div className="relative">
-          <input
-            id="origin"
-            type="text"
-            value={params.origin}
-            onChange={(e) => onChange({ ...params, origin: e.target.value })}
-            className="w-full rounded-xl border border-[var(--border)] bg-white py-3 px-4 text-[var(--ink)] font-medium placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] transition-colors"
-            placeholder="London"
-            list="origin-list"
-            autoComplete="off"
-          />
-          <datalist id="origin-list">
-            {ORIGIN_SUGGESTIONS.map((item) => (
-              <option key={item.code} value={item.code}>
-                {item.name}
-              </option>
-            ))}
-          </datalist>
+        <div className="space-y-2">
+          <div className="relative">
+            <select
+              id="origin"
+              value={originSelectValue}
+              onChange={(e) => handleOriginSelect(e.target.value)}
+              className="w-full appearance-none rounded-xl border border-[var(--border)] bg-white py-3 pl-4 pr-10 text-[var(--ink)] font-medium focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] transition-colors"
+            >
+              {ORIGIN_SUGGESTIONS.map((item) => (
+                <option key={item.code} value={item.code}>
+                  {item.name} ({item.code})
+                </option>
+              ))}
+              <option value="CUSTOM">Other city / airport</option>
+            </select>
+            <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--ink-muted)] pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+          {originMode === 'custom' && (
+            <input
+              type="text"
+              value={customOrigin}
+              onChange={(e) => {
+                setCustomOrigin(e.target.value);
+                onChange({ ...params, origin: e.target.value });
+              }}
+              className="w-full rounded-xl border border-[var(--border)] bg-white py-3 px-4 text-[var(--ink)] font-medium placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] transition-colors"
+              placeholder="Type city or IATA (e.g. LON)"
+              autoComplete="off"
+            />
+          )}
         </div>
         {showTrainWarning && (
           <p className="flex items-center gap-1.5 text-xs text-[var(--warning)]">
@@ -168,7 +216,7 @@ export default function SearchPanel({ params, onChange, onSubmit, isLoading }: S
               id="adults"
               value={params.adults}
               onChange={(e) => onChange({ ...params, adults: Number(e.target.value) })}
-              className="w-full appearance-none rounded-xl border border-[var(--border)] bg-white py-3 px-4 text-[var(--ink)] font-medium focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] transition-colors"
+              className="w-full appearance-none rounded-xl border border-[var(--border)] bg-white py-3 pl-4 pr-10 text-[var(--ink)] font-medium focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] transition-colors"
             >
               {[1, 2, 3, 4, 5, 6].map((n) => (
                 <option key={n} value={n}>{n}</option>
@@ -188,7 +236,7 @@ export default function SearchPanel({ params, onChange, onSubmit, isLoading }: S
               id="nights"
               value={params.nights}
               onChange={(e) => onChange({ ...params, nights: Number(e.target.value) })}
-              className="w-full appearance-none rounded-xl border border-[var(--border)] bg-white py-3 px-4 text-[var(--ink)] font-medium focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] transition-colors"
+              className="w-full appearance-none rounded-xl border border-[var(--border)] bg-white py-3 pl-4 pr-10 text-[var(--ink)] font-medium focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-soft)] transition-colors"
             >
               {[2, 3, 4, 5, 6, 7, 10, 14].map((n) => (
                 <option key={n} value={n}>{n}</option>

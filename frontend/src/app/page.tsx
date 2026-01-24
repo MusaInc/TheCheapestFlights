@@ -6,6 +6,7 @@ import PackageMap from '../components/PackageMap';
 import ResultsSummary from '../components/ResultsSummary';
 import SearchPanel from '../components/SearchPanel';
 import HotelPartnerLink from '../components/HotelPartnerLink';
+import ManualPackages from '../components/ManualPackages';
 import { searchPackages } from '../lib/api';
 import type { PackageDeal, PackageSearchParams, PackageSearchResponse } from '../lib/types';
 
@@ -32,6 +33,7 @@ export default function HomePage() {
   const resultsRef = useRef<HTMLDivElement>(null);
   const selectedDeal =
     packages.find((deal) => deal.id === selectedId) || (packages.length > 0 ? packages[0] : null);
+  const manualPackages = summary?.manualPackages || [];
 
   const runSearch = async (searchParams: PackageSearchParams) => {
     setIsLoading(true);
@@ -42,7 +44,18 @@ export default function HomePage() {
     controllerRef.current = controller;
 
     try {
-      const response = await searchPackages(searchParams, controller.signal);
+      const normalizedOrigin = searchParams.origin.trim().toUpperCase();
+      const shouldForceFlight =
+        searchParams.transportType === 'train' && !['LON', 'LONDON'].includes(normalizedOrigin);
+      const sanitizedParams = shouldForceFlight
+        ? { ...searchParams, transportType: 'flight' }
+        : searchParams;
+
+      if (sanitizedParams !== searchParams) {
+        setParams(sanitizedParams);
+      }
+
+      const response = await searchPackages(sanitizedParams, controller.signal);
       setPackages(response.data);
       setSummary(response);
       if (response.data?.length > 0) {
@@ -304,6 +317,10 @@ export default function HomePage() {
                   Increase budget to £{Math.min(params.maxBudget + 500, 5000)}
                 </button>
               </div>
+            )}
+
+            {!isLoading && packages.length === 0 && !error && manualPackages.length > 0 && (
+              <ManualPackages packages={manualPackages} />
             )}
 
 

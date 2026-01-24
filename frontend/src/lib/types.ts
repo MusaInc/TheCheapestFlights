@@ -92,6 +92,19 @@ export type RestaurantOption = {
   bookingLink?: string;
 };
 
+export type ManualPackage = {
+  id: string;
+  title: string;
+  description?: string;
+  url: string;
+  priceFrom?: number | null;
+  currency?: string;
+  priceSuffix?: string | null;
+  highlights?: string[];
+  origin?: string;
+  startDate?: string | null;
+};
+
 export type InsuranceOption = {
   tier: string;
   name: string;
@@ -188,5 +201,6 @@ export type PackageSearchResponse = {
   searchParams: PackageSearchParams;
   disclaimer: string;
   exactMatch?: boolean;
+  manualPackages?: ManualPackage[];
   error?: string;
 };
